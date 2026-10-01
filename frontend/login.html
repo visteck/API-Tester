@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="__APP_BASE_PATH__/">
+    <title>Iniciar sesión · API Tester</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='.9em' font-size='58'%3E🚀%3C/text%3E%3C/svg%3E">
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-slate-100">
+    <main class="w-full max-w-md">
+      <section class="rounded-2xl border border-slate-700 bg-slate-900 p-8 shadow-2xl shadow-cyan-950/20">
+        <div class="mb-7 text-center">
+          <div class="mb-4 text-5xl" aria-hidden="true">🚀</div>
+          <h1 class="text-2xl font-bold tracking-tight">API Tester</h1>
+          <p class="mt-2 text-sm text-slate-400">Inicia sesión para continuar</p>
+        </div>
+
+        <form method="post" action="__APP_BASE_PATH__/login" class="space-y-5">
+          <label class="block">
+            <span class="mb-2 block text-sm font-medium text-slate-300">Usuario</span>
+            <input name="username" type="text" autocomplete="username" required autofocus
+              class="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-3 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30">
+          </label>
+          <label class="block">
+            <span class="mb-2 block text-sm font-medium text-slate-300">Contraseña</span>
+            <input name="password" type="password" autocomplete="current-password" required
+              class="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-3 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30">
+          </label>
+          <p class="min-h-5 text-sm text-red-300" role="alert">__LOGIN_ERROR__</p>
+          <button type="submit" class="w-full rounded-lg bg-cyan-500 px-4 py-3 font-semibold text-slate-950 transition hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-300">
+            Iniciar sesión
+          </button>
+        </form>
+      </section>
+      <p class="mt-5 text-center text-xs text-slate-500">Conexión protegida · API Tester</p>
+    </main>
+  </body>
+</html>

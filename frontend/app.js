@@ -11,6 +11,7 @@ const pasteHeadersButton = document.querySelector("#paste-headers");
 const pasteBodyButton = document.querySelector("#paste-body");
 const copyResponseButton = document.querySelector("#copy-response");
 const clipboardFeedback = document.querySelector("#clipboard-feedback");
+const appBasePath = document.querySelector('meta[name="app-base-path"]').content;
 
 function parseHeaders(value) {
   const trimmedValue = value.trim();
@@ -137,12 +138,17 @@ form.addEventListener("submit", async (event) => {
   responsePanel.textContent = "Esperando respuesta del servidor...";
 
   try {
-    const response = await fetch("/api/proxy", {
+    const response = await fetch(`${appBasePath}/api/proxy`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request)
     });
     const payload = await response.json();
+
+    if (response.status === 401) {
+      window.location.assign(`${appBasePath}/login`);
+      return;
+    }
 
     renderStatus(payload.status || response.status, payload.statusText || response.statusText);
     responsePanel.textContent = JSON.stringify(

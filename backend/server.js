@@ -4,6 +4,7 @@ const net = require("node:net");
 const path = require("node:path");
 const express = require("express");
 const cors = require("cors");
+const { rateLimit } = require("express-rate-limit");
 const { Agent, fetch } = require("undici");
 
 require("dotenv").config({ path: path.join(__dirname, ".env") });
@@ -13,6 +14,15 @@ const port = Number(process.env.PORT) || 3000;
 const requestTimeoutMs = 30_000;
 const username = process.env.API_TESTER_USERNAME;
 const password = process.env.API_TESTER_PASSWORD;
+const sessionSecret = process.env.SESSION_SECRET;
+const configuredBasePath = process.env.APP_BASE_PATH || "";
+const basePath = configuredBasePath === "/"
+  ? ""
+  : configuredBasePath.replace(/\/+$/, "");
+const frontendPath = path.join(__dirname, "..", "frontend");
+const sessionCookieName = "api_tester_session";
+const sessionLifetimeMs = 8 * 60 * 60 * 1000;
+const isProduction = process.env.NODE_ENV === "production";
 const allowedOrigins = new Set(
   (process.env.FRONTEND_ORIGIN || `http://localhost:${port}`)
     .split(",")
@@ -33,8 +43,12 @@ const blockedHeaderNames = new Set([
   "upgrade"
 ]);
 
-if (!username || !password) {
-  throw new Error("Define API_TESTER_USERNAME y API_TESTER_PASSWORD antes de iniciar el servidor.");
+if (!username || !password || !sessionSecret || sessionSecret.length < 32) {
+  throw new Error("Define API_TESTER_USERNAME, API_TESTER_PASSWORD y un SESSION_SECRET de al menos 32 caracteres.");
+}
+
+if (basePath && !/^\/[a-zA-Z0-9/_-]*$/.test(basePath)) {
+  throw new Error("APP_BASE_PATH debe ser una ruta absoluta, por ejemplo /apps/apitester.");
 }
 
 function credentialsMatch(value, expected) {
@@ -44,38 +58,148 @@ function credentialsMatch(value, expected) {
     crypto.timingSafeEqual(actualBuffer, expectedBuffer);
 }
 
-function requireAuthentication(req, res, next) {
-  const authorization = req.get("authorization");
-  if (!authorization || !authorization.startsWith("Basic ")) {
-    res.set("WWW-Authenticate", 'Basic realm="API Tester", charset="UTF-8"');
-    return res.status(401).send("Autenticación requerida.");
-  }
-
-  const decoded = Buffer.from(authorization.slice(6), "base64").toString("utf8");
-  const separator = decoded.indexOf(":");
-  const suppliedUsername = decoded.slice(0, separator);
-  const suppliedPassword = decoded.slice(separator + 1);
-
-  if (
-    separator === -1 ||
-    !credentialsMatch(suppliedUsername, username) ||
-    !credentialsMatch(suppliedPassword, password)
-  ) {
-    res.set("WWW-Authenticate", 'Basic realm="API Tester", charset="UTF-8"');
-    return res.status(401).send("Credenciales inválidas.");
-  }
-
-  return next();
+function signSession(payload) {
+  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = crypto.createHmac("sha256", sessionSecret).update(encodedPayload).digest("base64url");
+  return `${encodedPayload}.${signature}`;
 }
+
+function verifySession(token) {
+  if (typeof token !== "string") {
+    return false;
+  }
+
+  const [encodedPayload, suppliedSignature] = token.split(".");
+  if (!encodedPayload || !suppliedSignature) {
+    return false;
+  }
+
+  const expectedSignature = crypto.createHmac("sha256", sessionSecret).update(encodedPayload).digest();
+  let actualSignature;
+  try {
+    actualSignature = Buffer.from(suppliedSignature, "base64url");
+  } catch {
+    return false;
+  }
+  if (
+    actualSignature.length !== expectedSignature.length ||
+    !crypto.timingSafeEqual(actualSignature, expectedSignature)
+  ) {
+    return false;
+  }
+
+  try {
+    const payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8"));
+    return payload.sub === username && Number.isFinite(payload.exp) && payload.exp > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+function readSessionCookie(req) {
+  const cookies = req.headers.cookie || "";
+  const entry = cookies.split(";").map((part) => part.trim())
+    .find((part) => part.startsWith(`${sessionCookieName}=`));
+  return entry ? decodeURIComponent(entry.slice(sessionCookieName.length + 1)) : "";
+}
+
+function setSessionCookie(res, token) {
+  const cookiePath = basePath || "/";
+  const secureAttribute = isProduction ? "; Secure" : "";
+  res.setHeader(
+    "Set-Cookie",
+    `${sessionCookieName}=${encodeURIComponent(token)}; Path=${cookiePath}; HttpOnly; SameSite=Strict; Max-Age=${sessionLifetimeMs / 1000}${secureAttribute}`
+  );
+}
+
+function clearSessionCookie(res) {
+  const cookiePath = basePath || "/";
+  const secureAttribute = isProduction ? "; Secure" : "";
+  res.setHeader(
+    "Set-Cookie",
+    `${sessionCookieName}=; Path=${cookiePath}; HttpOnly; SameSite=Strict; Max-Age=0${secureAttribute}`
+  );
+}
+
+function requireAuthentication(req, res, next) {
+  if (verifySession(readSessionCookie(req))) {
+    return next();
+  }
+
+  if (req.path.startsWith(`${basePath}/api/`) || req.path === `${basePath}/api/proxy`) {
+    return res.status(401).json({ error: "La sesión expiró. Inicia sesión nuevamente." });
+  }
+  return res.redirect(`${basePath}/login`);
+}
+
+if (isProduction) {
+  app.set("trust proxy", 1);
+}
+const appPath = (suffix = "") => `${basePath}${suffix}`;
+const loginPage = require("node:fs").readFileSync(path.join(frontendPath, "login.html"), "utf8");
 
 app.use(cors({
   origin(origin, callback) {
     callback(null, !origin || allowedOrigins.has(origin));
   }
 }));
-app.use(requireAuthentication);
 app.use(express.json({ limit: "1mb" }));
-app.use(express.static(path.join(__dirname, "..", "frontend")));
+app.use(express.urlencoded({ extended: false, limit: "10kb" }));
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: "Demasiados intentos de inicio de sesión. Espera 15 minutos e inténtalo nuevamente."
+});
+
+function isSameOriginRequest(req) {
+  const origin = req.get("origin");
+  if (!origin) {
+    return true;
+  }
+  return origin === `${req.protocol}://${req.get("host")}`;
+}
+
+app.get(appPath("/login"), (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const page = loginPage.replaceAll("__APP_BASE_PATH__", basePath)
+    .replace("__LOGIN_ERROR__", req.query.error === "1" ? "Usuario o contraseña incorrectos." : "");
+  return res.type("html").send(page);
+});
+
+app.post(appPath("/login"), loginLimiter, (req, res) => {
+  if (!isSameOriginRequest(req)) {
+    return res.status(403).send("Origen no permitido.");
+  }
+
+  const suppliedUsername = typeof req.body.username === "string" ? req.body.username : "";
+  const suppliedPassword = typeof req.body.password === "string" ? req.body.password : "";
+  if (!credentialsMatch(suppliedUsername, username) || !credentialsMatch(suppliedPassword, password)) {
+    return res.redirect(303, `${basePath}/login?error=1`);
+  }
+
+  setSessionCookie(res, signSession({ sub: username, exp: Date.now() + sessionLifetimeMs }));
+  return res.redirect(303, `${basePath}/`);
+});
+
+app.get(appPath("/"), requireAuthentication, (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const indexPage = require("node:fs").readFileSync(path.join(frontendPath, "index.html"), "utf8")
+    .replaceAll("__APP_BASE_PATH__", basePath);
+  return res.type("html").send(indexPage);
+});
+
+app.post(appPath("/logout"), requireAuthentication, (req, res) => {
+  if (!isSameOriginRequest(req)) {
+    return res.status(403).send("Origen no permitido.");
+  }
+  clearSessionCookie(res);
+  return res.redirect(303, `${basePath}/login`);
+});
+
+app.use(appPath("/") || "/", requireAuthentication, express.static(frontendPath, { index: false }));
 
 function isPrivateIpv4(address) {
   const parts = address.split(".").map(Number);
@@ -228,7 +352,7 @@ function normalizeHeaders(headers) {
   return normalized;
 }
 
-app.post("/api/proxy", async (req, res) => {
+app.post(appPath("/api/proxy"), requireAuthentication, async (req, res) => {
   const { targetUrl, method, headers = {}, body } = req.body || {};
   const allowedMethods = new Set(["GET", "POST", "PUT", "DELETE"]);
   const normalizedMethod = typeof method === "string" ? method.toUpperCase() : "";
