@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Tester</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='.9em' font-size='58'%3E🚀%3C/text%3E%3C/svg%3E">
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="min-h-screen bg-slate-950 text-slate-100">
+    <main class="mx-auto max-w-7xl p-4 sm:p-8">
+      <header class="mb-8">
+        <h1 class="flex items-center gap-3 text-3xl font-bold tracking-tight">
+          <span class="text-4xl" aria-hidden="true">🚀</span>
+          API Tester
+        </h1>
+        <p class="mt-2 text-slate-400">Prueba de forma segura tus APIs HTTPS de producción.</p>
+      </header>
+
+      <div class="grid gap-6 lg:grid-cols-2">
+        <section class="rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-xl">
+          <h2 class="mb-5 text-xl font-semibold">Petición</h2>
+          <form id="request-form" class="space-y-5">
+            <label class="block">
+              <span class="mb-2 block text-sm font-medium text-slate-300">URL de destino</span>
+              <input id="target-url" type="url" required placeholder="https://api.midominio.com/v1/recurso"
+                class="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2.5 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30">
+            </label>
+
+            <label class="block">
+              <span class="mb-2 block text-sm font-medium text-slate-300">Método HTTP</span>
+              <select id="method" class="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2.5 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30">
+                <option>GET</option>
+                <option>POST</option>
+                <option>PUT</option>
+                <option>DELETE</option>
+              </select>
+            </label>
+
+            <div class="block">
+              <div class="mb-2 flex items-center justify-between">
+                <label for="headers" class="text-sm font-medium text-slate-300">Headers</label>
+                <button id="paste-headers" type="button" title="Pegar headers" aria-label="Pegar headers" class="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-700 hover:text-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5 fill-none stroke-current stroke-2"><path d="M9 3h6m-5 0v3m4-3v3M8 6h8a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z"/><path d="M4 17V5a2 2 0 0 1 2-2h8"/></svg>
+                </button>
+              </div>
+              <textarea id="headers" rows="5" spellcheck="false" placeholder='{"Authorization":"Bearer tu-token","X-API-Key":"tu-clave"}'
+                class="w-full resize-y rounded-lg border border-slate-600 bg-slate-800 px-3 py-2.5 font-mono text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30"></textarea>
+              <span class="mt-1 block text-xs text-slate-500">JSON o una cabecera por línea: <code>Nombre: valor</code>.</span>
+            </div>
+
+            <div class="block">
+              <div class="mb-2 flex items-center justify-between">
+                <label for="body" class="text-sm font-medium text-slate-300">Body JSON</label>
+                <button id="paste-body" type="button" title="Pegar body" aria-label="Pegar body" class="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-700 hover:text-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 disabled:cursor-not-allowed disabled:opacity-40">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5 fill-none stroke-current stroke-2"><path d="M9 3h6m-5 0v3m4-3v3M8 6h8a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z"/><path d="M4 17V5a2 2 0 0 1 2-2h8"/></svg>
+                </button>
+              </div>
+              <textarea id="body" rows="7" spellcheck="false" placeholder='{"campo":"valor"}'
+                class="w-full resize-y rounded-lg border border-slate-600 bg-slate-800 px-3 py-2.5 font-mono text-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-50"></textarea>
+            </div>
+
+            <p id="form-error" class="hidden rounded-lg border border-red-400/50 bg-red-950/40 p-3 text-sm text-red-200" role="alert"></p>
+            <p id="clipboard-feedback" class="min-h-5 text-sm text-cyan-300" aria-live="polite"></p>
+            <button id="submit-button" type="submit"
+              class="w-full rounded-lg bg-cyan-500 px-4 py-3 font-semibold text-slate-950 transition hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-300 disabled:cursor-wait disabled:opacity-60">
+              Enviar petición
+            </button>
+          </form>
+        </section>
+
+        <section class="flex min-h-[600px] flex-col rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-xl">
+          <div class="mb-5 flex items-center justify-between gap-3">
+            <h2 class="text-xl font-semibold">Respuesta</h2>
+            <div class="flex items-center gap-2">
+              <button id="copy-response" type="button" title="Copiar respuesta" aria-label="Copiar respuesta" class="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-700 hover:text-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400">
+                <svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5 fill-none stroke-current stroke-2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4"/></svg>
+              </button>
+              <span id="status" class="hidden rounded-full px-3 py-1 text-sm font-bold"></span>
+            </div>
+          </div>
+          <pre id="response" class="flex-1 overflow-auto rounded-lg bg-slate-950 p-4 font-mono text-sm leading-6 text-slate-300">Envía una petición para ver la respuesta.</pre>
+        </section>
+      </div>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>

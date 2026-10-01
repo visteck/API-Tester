@@ -1,0 +1,19 @@
+{
+  "name": "api-tester-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Proxy seguro para probar APIs HTTPS de producción",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "undici": "^6.21.1"
+  }
+}
