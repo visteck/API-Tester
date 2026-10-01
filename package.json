@@ -1,0 +1,15 @@
+{
+  "name": "api-tester",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cliente web para probar APIs HTTPS con proxy autenticado",
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "workspaces": [
+    "backend"
+  ],
+  "scripts": {
+    "start": "npm --workspace backend start"
+  }
+}

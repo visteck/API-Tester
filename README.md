@@ -12,7 +12,6 @@ Cliente web minimalista para probar APIs HTTPS de producción mediante un proxy 
 Desde la raíz del repositorio, instala las dependencias:
 
 ```powershell
-cd backend
 npm install
 ```
 
@@ -37,27 +36,30 @@ Abre `http://localhost:3000`. La página de inicio de sesión usa esas credencia
 ## Despliegue en cPanel
 
 1. Habilita un certificado TLS válido y fuerza la redirección de HTTP a HTTPS.
-2. En **Setup Node.js App**, configura la versión de Node.js (18.17 o superior), el directorio de la aplicación como `backend` y `server.js` como archivo de inicio.
-3. Configura las variables de entorno de la aplicación en cPanel. No subas `backend/.env`:
+2. Clona o sube el repositorio completo conservando `backend` y `frontend` como directorios hermanos.
+3. En **Setup Node.js App**, configura Node.js 18.17 o superior, el directorio de la aplicación como la raíz del repositorio y `backend/server.js` como archivo de inicio. La raíz contiene el `package.json` de workspaces para que cPanel instale las dependencias declaradas por `backend`.
+4. Configura las variables de entorno de la aplicación en cPanel. No subas `backend/.env`:
 
    ```env
    API_TESTER_USERNAME=tu-usuario
    API_TESTER_PASSWORD=una-contrasena-larga-y-unica
    SESSION_SECRET=secreto-aleatorio-de-al-menos-32-caracteres
    NODE_ENV=production
-   APP_BASE_PATH=/apps/apitester
+   APP_BASE_PATH=/apps/api-tester
    FRONTEND_ORIGIN=https://victorcabrera.cl
    ```
 
-4. Instala las dependencias de producción desde el entorno de la aplicación:
+5. Instala las dependencias desde la raíz de la aplicación:
 
    ```sh
-   npm ci --omit=dev
+   npm install --omit=dev
    ```
 
-5. Configura la URL de la aplicación como `https://victorcabrera.cl/apps/apitester` y comprueba el inicio de sesión, los archivos estáticos, el cierre de sesión y una llamada al proxy.
+6. Configura la URL de la aplicación como `https://victorcabrera.cl/apps/api-tester` y comprueba el inicio de sesión, los archivos estáticos, el cierre de sesión y una llamada al proxy.
 
-`APP_BASE_PATH` debe coincidir con la ruta que recibe Express. Algunos montajes de Passenger conservan el prefijo `/apps/apitester` en las rutas y otros lo eliminan antes de entregar la petición a Node. Si cPanel elimina el prefijo, usa `APP_BASE_PATH` vacío y confirma con el proveedor cómo montar la aplicación en esa URL.
+`APP_BASE_PATH` debe coincidir con la ruta que recibe Express. Algunos montajes de Passenger conservan el prefijo `/apps/api-tester` en las rutas y otros lo eliminan antes de entregar la petición a Node. Si cPanel elimina el prefijo, usa `APP_BASE_PATH` vacío y confirma con el proveedor cómo montar la aplicación en esa URL.
+
+El script del frontend se llama `frontend/api-tester.js` para evitar colisiones con el `app.js` de ejemplo que cPanel puede crear en la raíz de una aplicación Node.
 
 Con `NODE_ENV=production`, la cookie de sesión lleva el atributo `Secure`. Asegúrate de que cPanel o su proxy inverso informe el esquema HTTPS correctamente a Node. Si el frontend y el proxy se sirven bajo el mismo dominio, no hace falta habilitar CORS para ese flujo.
 

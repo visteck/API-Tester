@@ -1,4 +1,6 @@
 backend/node_modules/
+node_modules/
+API-Tester-cpanel.zip
 .env
 .env.*
 !.env.example
